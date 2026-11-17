@@ -248,7 +248,8 @@ async function loadCloudLessons() {
 
     // サーバーに存在しないクラウドノートを画面から取り除く
     const beforeCount = lessons.filter(x => x.cloudId != null).length;
-    lessons = lessons.filter(x => x.cloudId == null || cloudIdsFromServer.has(String(x.cloudId)));
+    const keptLessons = lessons.filter(x => x.cloudId == null || cloudIdsFromServer.has(String(x.cloudId)));
+    lessons.splice(0, lessons.length, ...keptLessons);
     const removed = beforeCount - lessons.filter(x => x.cloudId != null).length;
 
     let added = 0;
@@ -288,7 +289,8 @@ async function loadCloudLessons() {
       added++;
     }
 
-    loadedCloudIds = new Set(rows.map(row => "cloud-" + row.id));
+    loadedCloudIds.clear();
+    rows.forEach(row => loadedCloudIds.add("cloud-" + row.id));
     render();
     setCloudStatus(`読み込み完了：クラウド ${rows.length} 件を確認。新規 ${added} 件、更新 ${updated} 件、削除反映 ${removed} 件。`);
   } catch (error) {
