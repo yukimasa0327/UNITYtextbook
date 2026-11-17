@@ -56,7 +56,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </main>
 </div>
 <script>
-const lessons = [
+let lessons = [
 { id:"variables",page:"basics",title:"変数・データ型",desc:"値を保存するための入れ物",tags:["C#","基本"],body:`<p>変数は、数値や文字などのデータを保存するための入れ物。</p><ul><li><code>int</code>：整数</li><li><code>float</code>：小数</li><li><code>string</code>：文字列</li><li><code>bool</code>：true / false</li><li><code>GameObject</code>：ゲームオブジェクト</li><li><code>Vector3</code>：X・Y・Zの3次元データ</li></ul><pre><button class="copy">コピー</button><code>int score = 0;\nfloat speed = 5.0f;\nstring playerName = "Player";\nbool isJumping = false;</code></pre>`},
 { id:"methods",page:"basics",title:"メソッド・処理の分割",desc:"処理を名前のついたまとまりにする",tags:["C#","メソッド"],body:`<p>メソッドは、複数の処理をひとまとめにしたもの。Update()に全部書かず、Move()やSpawnBomb()などに分けると読みやすくなる。</p><pre><button class="copy">コピー</button><code>void Update()\n{\n    Move();\n    SpawnBomb();\n}\n\nvoid Move()\n{\n    // 移動処理\n}</code></pre><p><code>return;</code> は、そのメソッドの処理を終了する。</p>`},
 { id:"conditions",page:"basics",title:"if・比較演算子",desc:"条件によって処理を分ける",tags:["C#","条件分岐"],body:`<pre><button class="copy">コピー</button><code>if (bombCount > 0)\n{\n    // 爆弾が残っている場合\n}</code></pre><ul><li><code>=</code>：代入</li><li><code>==</code>：等しいか比較</li><li><code>!=</code>：等しくない</li><li><code>&gt;</code>：より大きい</li><li><code>&amp;&amp;</code>：両方の条件を満たす（AND）</li><li><code>||</code>：どちらかの条件を満たす（OR）</li></ul>`},
