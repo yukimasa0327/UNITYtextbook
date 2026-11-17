@@ -108,20 +108,41 @@ function wire(){document.querySelectorAll("[data-goto]").forEach(e=>e.onclick=()
 });
 document.querySelectorAll("[data-delete-cloud]").forEach(b=>b.onclick=async()=>{
   const lesson = lessons.find(x=>x.id===b.dataset.deleteCloud);
-  if(!lesson || !lesson.cloudId) return;
+  if(!lesson || !lesson.cloudId || cloudOperationInProgress) return;
   if(!confirm("「"+lesson.title+"」をクラウドから削除しますか？この操作は取り消せません。")) return;
+
+  // 削除とクラウド読み込みが同時に走らないようにする
+  cloudOperationInProgress = true;
   b.disabled = true;
-  const {data:authData,error:authError} = await supabaseClient.auth.getUser();
-  if(authError || !authData.user){b.disabled=false;return setCloudStatus("ログイン状態を確認できません。");}
-  const {error} = await supabaseClient.from("unity_lessons").delete().eq("id",lesson.cloudId).eq("user_id",authData.user.id);
-  b.disabled = false;
-  if(error) return setCloudStatus("削除エラー："+error.message);
-  lessons = lessons.filter(x=>x.id!==lesson.id);
-  loadedCloudIds.delete(lesson.id);
-  favorites = favorites.filter(id=>id!==lesson.id);
-  saveFav();
-  render();
-  setCloudStatus("削除完了：「"+lesson.title+"」をクラウドから削除しました。");
+  loadBtn.disabled = true;
+  setCloudStatus("削除しています…");
+
+  try {
+    const {data:authData,error:authError} = await supabaseClient.auth.getUser();
+    if(authError || !authData.user) throw new Error("ログイン状態を確認できません。もう一度ログインしてください。");
+
+    // DELETEは成功時でも返却データが空になる設定があるため、select()で件数判定しない
+    const {error} = await supabaseClient
+      .from("unity_lessons")
+      .delete()
+      .eq("id",lesson.cloudId)
+      .eq("user_id",authData.user.id);
+    if(error) throw error;
+
+    // Supabaseからエラーなく応答したら、画面側からも即時に取り除く
+    lessons = lessons.filter(x=>x.id!==lesson.id);
+    loadedCloudIds.delete(lesson.id);
+    favorites = favorites.filter(id=>id!==lesson.id);
+    saveFav();
+    render();
+    setCloudStatus("削除完了：「"+lesson.title+"」をクラウドから削除しました。");
+  } catch(error) {
+    setCloudStatus("削除エラー："+(error.message || "不明なエラー"));
+  } finally {
+    cloudOperationInProgress = false;
+    loadBtn.disabled = false;
+    b.disabled = false;
+  }
 });
 document.querySelectorAll(".copy").forEach(b=>b.onclick=async()=>{let t=b.parentElement.querySelector("code").innerText;try{await navigator.clipboard.writeText(t);b.textContent="コピー済み"}catch{b.textContent="選択してコピー"}setTimeout(()=>b.textContent="コピー",1500)})}
 function go(p){current=p;query="";document.getElementById("search").value="";render();window.scrollTo({top:0,behavior:"smooth"})}
@@ -147,6 +168,7 @@ let editingCloudLessonId = null;
 const composerHeading = noteComposer.querySelector("h2");
 const composerDescription = noteComposer.querySelector("p");
 let loadedCloudIds = new Set();
+let cloudOperationInProgress = false;
 
 function setCloudStatus(message) {
   cloudStatus.textContent = message;
@@ -203,55 +225,78 @@ signOutBtn.addEventListener("click", async () => {
 });
 
 async function loadCloudLessons() {
-  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-  if (authError || !authData.user) {
-    return setCloudStatus("ログイン状態を確認できません。もう一度ログインしてください。");
-  }
-
+  if (cloudOperationInProgress) return;
+  cloudOperationInProgress = true;
   loadBtn.disabled = true;
   setCloudStatus("クラウドのノートを読み込んでいます…");
 
-  const { data, error } = await supabaseClient
-    .from("unity_lessons")
-    .select("id,title,category,content,code,created_at")
-    .eq("user_id", authData.user.id)
-    .order("created_at", { ascending: true });
-
-  loadBtn.disabled = false;
-  if (error) return setCloudStatus("読み込みエラー：" + error.message);
-
-  let added = 0;
-  for (const row of (data || [])) {
-    const category = pageInfo[row.category] ? row.category : "scripts";
-    const existingLocal = lessons.find(x => x.title === row.title && x.page === category);
-    if (existingLocal) {
-      // 既存の19件はそのまま維持し、クラウド上の追加ノートだけを新規表示する
-      continue;
+  try {
+    const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !authData.user) {
+      throw new Error("ログイン状態を確認できません。もう一度ログインしてください。");
     }
-    const cloudId = "cloud-" + row.id;
-    if (loadedCloudIds.has(cloudId)) continue;
-    const escapeHTML = value => String(value || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-    const textBody = row.content
-      ? String(row.content).split(/\\n{2,}/).map(part => `<p>${escapeHTML(part).replace(/\\n/g, "<br>")}</p>`).join("")
-      : "";
-    const codeBody = row.code ? `<pre><code>${escapeHTML(row.code)}</code></pre>` : "";
-    lessons.push({
-      id: cloudId,
-      page: category,
-      title: row.title || "タイトルなし",
-      desc: "クラウドから読み込んだノート",
-      tags: ["クラウド"],
-      body: (textBody + codeBody) || "<p>内容はまだありません。</p>",
-      cloudId: row.id,
-      rawContent: row.content || "",
-      rawCode: row.code || ""
-    });
-    loadedCloudIds.add(cloudId);
-    added++;
-  }
 
-  render();
-  setCloudStatus(`読み込み完了：クラウドのノート ${data?.length || 0} 件を確認しました。新しく表示したノートは ${added} 件です。`);
+    const { data, error } = await supabaseClient
+      .from("unity_lessons")
+      .select("id,title,category,content,code,created_at")
+      .eq("user_id", authData.user.id)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    const rows = data || [];
+    const cloudIdsFromServer = new Set(rows.map(row => String(row.id)));
+
+    // サーバーに存在しないクラウドノートを画面から取り除く
+    const beforeCount = lessons.filter(x => x.cloudId != null).length;
+    lessons = lessons.filter(x => x.cloudId == null || cloudIdsFromServer.has(String(x.cloudId)));
+    const removed = beforeCount - lessons.filter(x => x.cloudId != null).length;
+
+    let added = 0;
+    let updated = 0;
+    for (const row of rows) {
+      const category = pageInfo[row.category] ? row.category : "scripts";
+      const cloudId = "cloud-" + row.id;
+      const escapeHTML = value => String(value || "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+      const textBody = row.content
+        ? String(row.content).split(/\n{2,}/).map(part => `<p>${escapeHTML(part).replace(/\n/g, "<br>")}</p>`).join("")
+        : "";
+      const codeBody = row.code ? `<pre><code>${escapeHTML(row.code)}</code></pre>` : "";
+      const cloudLesson = {
+        id: cloudId,
+        page: category,
+        title: row.title || "タイトルなし",
+        desc: "クラウドから読み込んだノート",
+        tags: ["クラウド"],
+        body: (textBody + codeBody) || "<p>内容はまだありません。</p>",
+        cloudId: row.id,
+        rawContent: row.content || "",
+        rawCode: row.code || ""
+      };
+
+      const existingIndex = lessons.findIndex(x => String(x.cloudId) === String(row.id));
+      if (existingIndex >= 0) {
+        lessons[existingIndex] = cloudLesson;
+        updated++;
+        continue;
+      }
+
+      // 初期搭載ノートと同じタイトル・カテゴリーなら二重表示しない
+      const existingStatic = lessons.some(x => x.cloudId == null && x.title === cloudLesson.title && x.page === category);
+      if (existingStatic) continue;
+
+      lessons.push(cloudLesson);
+      added++;
+    }
+
+    loadedCloudIds = new Set(rows.map(row => "cloud-" + row.id));
+    render();
+    setCloudStatus(`読み込み完了：クラウド ${rows.length} 件を確認。新規 ${added} 件、更新 ${updated} 件、削除反映 ${removed} 件。`);
+  } catch (error) {
+    setCloudStatus("読み込みエラー：" + (error.message || "不明なエラー"));
+  } finally {
+    cloudOperationInProgress = false;
+    loadBtn.disabled = false;
+  }
 }
 
 addNoteBtn.addEventListener("click", async () => {
