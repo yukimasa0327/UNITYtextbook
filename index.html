@@ -28,6 +28,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 .footer{text-align:center;color:#9aa4b5;font-size:10px;margin-top:35px}
 .mobilebrand{display:none}
 .cloudbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:14px;margin:18px 0 0}.cloudbar input{min-width:180px;flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:12px}.cloudbar button{border:0;border-radius:8px;background:var(--accent);color:#fff;padding:9px 12px;font-size:11px;cursor:pointer}.cloudbar button.secondary{background:#eef0f7;color:#39445a}.cloudstatus{width:100%;font-size:11px;color:var(--muted)}
+.notecomposer{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0;box-shadow:var(--shadow)}.notecomposer h2{font-size:17px;margin:0 0 6px}.notecomposer p{font-size:12px;color:var(--muted);margin:0 0 14px}.notegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.notecomposer input,.notecomposer select,.notecomposer textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fafbfe;font:inherit;font-size:13px}.notecomposer textarea{min-height:90px;resize:vertical}.notecomposer .wide{grid-column:1/-1}.notecomposer button{border:0;border-radius:9px;background:var(--accent);color:#fff;padding:10px 16px;font:inherit;font-size:13px;cursor:pointer}.notecomposer button:disabled{opacity:.6;cursor:wait}@media(max-width:600px){.notegrid{grid-template-columns:1fr}.notecomposer .wide{grid-column:auto}}
 @media(max-width:850px){.app{grid-template-columns:1fr}.sidebar{height:auto;position:sticky;top:0;z-index:8;padding:10px 13px;gap:8px}.brand{padding:0 5px}.logo{width:34px;height:34px}.brand b{font-size:15px}.brand small{display:none}.nav{display:flex;overflow:auto;gap:4px}.navlabel,.sidefoot{display:none}.nav button{white-space:nowrap;width:auto;padding:8px 10px;font-size:11px;margin:0}.nav .ico{width:auto}.topbar{height:58px;padding:0 16px}.crumb{display:none}.search{width:min(100%,290px)}.content{padding:20px 15px 55px}.welcome{padding:24px 21px}.welcome h1{font-size:24px}.welcome:after{right:8px;font-size:100px}.stats{gap:20px}.cards{grid-template-columns:repeat(2,1fr);gap:10px}.card{padding:15px}.sectionhead{margin-top:23px}}
 @media(max-width:480px){.cards{grid-template-columns:1fr}.welcome p{max-width:95%}.stats{gap:15px}.stat strong{font-size:19px}.topright{width:100%}.search{width:100%}}
 </style>
@@ -51,7 +52,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </aside>
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
-<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><div id="view"></div></div>
+<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div></section><div id="view"></div></div>
 </main>
 </div>
 <script>
@@ -109,6 +110,8 @@ const signUpBtn = document.getElementById("signUpBtn");
 const signOutBtn = document.getElementById("signOutBtn");
 const syncBtn = document.getElementById("syncBtn");
 const loadBtn = document.getElementById("loadBtn");
+const noteComposer = document.getElementById("noteComposer");
+const addNoteBtn = document.getElementById("addNoteBtn");
 let loadedCloudIds = new Set();
 
 function setCloudStatus(message) {
@@ -121,6 +124,7 @@ function updateAuthUI(user) {
   signOutBtn.hidden = !loggedIn;
   syncBtn.hidden = !loggedIn;
   loadBtn.hidden = !loggedIn;
+  noteComposer.hidden = !loggedIn;
   authEmail.hidden = loggedIn;
   authPassword.hidden = loggedIn;
   setCloudStatus(loggedIn
@@ -192,15 +196,18 @@ async function loadCloudLessons() {
     }
     const cloudId = "cloud-" + row.id;
     if (loadedCloudIds.has(cloudId)) continue;
+    const escapeHTML = value => String(value || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const textBody = row.content
+      ? String(row.content).split(/\\n{2,}/).map(part => `<p>${escapeHTML(part).replace(/\\n/g, "<br>")}</p>`).join("")
+      : "";
+    const codeBody = row.code ? `<pre><code>${escapeHTML(row.code)}</code></pre>` : "";
     lessons.push({
       id: cloudId,
       page: category,
       title: row.title || "タイトルなし",
       desc: "クラウドから読み込んだノート",
       tags: ["クラウド"],
-      body: row.content || (row.code
-        ? `<pre><code>${String(row.code).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}</code></pre>`
-        : "<p>内容はまだありません。</p>")
+      body: (textBody + codeBody) || "<p>内容はまだありません。</p>"
     });
     loadedCloudIds.add(cloudId);
     added++;
@@ -209,6 +216,65 @@ async function loadCloudLessons() {
   render();
   setCloudStatus(`読み込み完了：クラウドのノート ${data?.length || 0} 件を確認しました。新しく表示したノートは ${added} 件です。`);
 }
+
+addNoteBtn.addEventListener("click", async () => {
+  const title = document.getElementById("newTitle").value.trim();
+  const category = document.getElementById("newCategory").value;
+  const content = document.getElementById("newContent").value.trim();
+  const code = document.getElementById("newCode").value;
+
+  if (!title) return setCloudStatus("タイトルを入力してください。");
+  if (!content && !code.trim()) return setCloudStatus("学習内容かC#コードを入力してください。");
+
+  addNoteBtn.disabled = true;
+  setCloudStatus("新しいノートを保存しています…");
+
+  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !authData.user) {
+    addNoteBtn.disabled = false;
+    updateAuthUI(null);
+    return setCloudStatus("ログイン状態を確認できません。もう一度ログインしてください。");
+  }
+
+  const { data, error } = await supabaseClient
+    .from("unity_lessons")
+    .insert({
+      title,
+      category,
+      content,
+      code,
+      user_id: authData.user.id
+    })
+    .select("id,title,category,content,code,created_at")
+    .single();
+
+  addNoteBtn.disabled = false;
+  if (error) return setCloudStatus("保存エラー：" + error.message);
+
+  document.getElementById("newTitle").value = "";
+  document.getElementById("newContent").value = "";
+  document.getElementById("newCode").value = "";
+
+  // 追加したノートを画面にも即時反映
+  const escapeHTML = value => String(value || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const body = (content ? `<p>${escapeHTML(content).replace(/\n/g, "<br>")}</p>` : "")
+    + (code.trim() ? `<pre><code>${escapeHTML(code)}</code></pre>` : "");
+  const cloudId = "cloud-" + data.id;
+  lessons.push({
+    id: cloudId,
+    page: category,
+    title,
+    desc: "クラウドに保存したノート",
+    tags: ["クラウド"],
+    body
+  });
+  loadedCloudIds.add(cloudId);
+  current = category;
+  query = "";
+  document.getElementById("search").value = "";
+  render();
+  setCloudStatus("保存完了！新しいノートをクラウドに追加しました。別の端末では「クラウドから読み込む」を押すと表示されます。");
+});
 
 loadBtn.addEventListener("click", loadCloudLessons);
 
