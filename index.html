@@ -90,9 +90,40 @@ let current="home", query="";
 let favorites=JSON.parse(localStorage.getItem("unityFavorites")||"[]");
 function saveFav(){localStorage.setItem("unityFavorites",JSON.stringify(favorites))}
 function home(){return `<section class="welcome"><div class="eyebrow">MY PERSONAL LEARNING LIBRARY</div><h1>UNITY教科書</h1><p>Unity・C#の学習内容を、自分のペースで整理する場所。基礎から実践コードまで、必要なときにすぐ見返せる。</p><div class="stats"><div class="stat"><strong>${lessons.length}</strong><span>学習ノート</span></div><div class="stat"><strong>${favorites.length}</strong><span>お気に入り</span></div><div class="stat"><strong>いつでも</strong><span>見返せる</span></div></div></section><div class="sectionhead"><div><h2>学習カテゴリー</h2><p>知りたい分野を選択</p></div></div><div class="cards">${Object.entries(pageInfo).map(([k,v])=>`<div class="card" data-goto="${k}"><div class="cardicon">${({basics:"▤",arrays:"▦",movement:"⌖",objects:"◇",game:"⚙",scripts:"⌘"})[k]}</div><h3>${v[0]}</h3><p>${v[1]}</p><span class="tag">${lessons.filter(x=>x.page===k).length} ノート</span></div>`).join("")}<div class="card" data-goto="glossary"><div class="cardicon">Ａ</div><h3>用語集</h3><p>Unity・C#で使う用語を短く確認。</p><span class="tag">基本用語</span></div></div><div class="panel"><h2>最近追加した学習内容</h2>${lessons.slice(-4).reverse().map(x=>`<div class="recent" data-open="${x.id}"><span class="dot"></span><div><b>${x.title}</b><small>${pageNames[x.page]} ・ ${x.desc}</small></div></div>`).join("")}</div>`}
-function lessonCard(x){return `<article class="lesson" id="${x.id}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><h3>${x.title}</h3><div style="font-size:11px;color:#7a879a">${x.desc}</div></div><button class="pill fav" data-fav="${x.id}">${favorites.includes(x.id)?"★ 保存済み":"☆ 保存"}</button></div><div style="margin-top:15px">${x.body}</div><div>${x.tags.map(t=>`<span class="tag">${t}</span>`).join(" ")}</div></article>`}
+function lessonCard(x){return `<article class="lesson" id="${x.id}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><h3>${x.title}</h3><div style="font-size:11px;color:#7a879a">${x.desc}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="pill fav" data-fav="${x.id}">${favorites.includes(x.id)?"★ 保存済み":"☆ 保存"}</button>${x.cloudId ? `<button class="pill" data-edit-cloud="${x.id}">編集</button><button class="pill" data-delete-cloud="${x.id}">削除</button>` : ""}</div></div><div style="margin-top:15px">${x.body}</div><div>${x.tags.map(t=>`<span class="tag">${t}</span>`).join(" ")}</div></article>`}
 function render(){document.getElementById("crumb").textContent=pageNames[current]||"検索結果";document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===current));let v=document.getElementById("view");if(current==="home"){v.innerHTML=home()}else if(current==="glossary"){let terms=[["MonoBehaviour","Unityのスクリプトで使う基本クラス"],["Start()","最初のフレーム更新前に一度呼ばれる"],["Update()","毎フレーム呼ばれる"],["Prefab","再利用できるGameObjectのひな形"],["Instantiate()","オブジェクトを生成する"],["Destroy()","オブジェクトを削除する"],["Vector3","X・Y・Zの値を持つ構造体"],["normalized","ベクトルの向きを保って長さを1にする"],["Time.deltaTime","前フレームからの経過時間"],["Quaternion.identity","回転なしを表す"]];v.innerHTML=`<div class="pagehead"><h1>用語集</h1><p>Unityでよく使う言葉を簡単に確認。</p></div><div class="lessonlist">${terms.map(t=>`<article class="lesson"><h3>${t[0]}</h3><p>${t[1]}</p></article>`).join("")}</div>`}else{let list=current==="favorites"?lessons.filter(x=>favorites.includes(x.id)):lessons.filter(x=>x.page===current);if(query.trim())list=lessons.filter(x=>(x.title+x.desc+x.tags.join(" ")+x.body.replace(/<[^>]*>/g,"")).toLowerCase().includes(query.toLowerCase()));let title=query?"検索結果":(pageInfo[current]?.[0]||"");let desc=query?`「${query}」に一致するノート`:(pageInfo[current]?.[1]||"");v.innerHTML=`<div class="pagehead"><h1>${title}</h1><p>${desc}</p></div><div class="lessonlist">${list.length?list.map(lessonCard).join(""):'<div class="empty">まだノートがありません。</div>'}</div>`}wire()}
-function wire(){document.querySelectorAll("[data-goto]").forEach(e=>e.onclick=()=>go(e.dataset.goto));document.querySelectorAll("[data-open]").forEach(e=>e.onclick=()=>{let x=lessons.find(a=>a.id===e.dataset.open);go(x.page);setTimeout(()=>document.getElementById(x.id)?.scrollIntoView({behavior:"smooth"}),20)});document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{let id=b.dataset.fav;favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];saveFav();render()});document.querySelectorAll(".copy").forEach(b=>b.onclick=async()=>{let t=b.parentElement.querySelector("code").innerText;try{await navigator.clipboard.writeText(t);b.textContent="コピー済み"}catch{b.textContent="選択してコピー"}setTimeout(()=>b.textContent="コピー",1500)})}
+function wire(){document.querySelectorAll("[data-goto]").forEach(e=>e.onclick=()=>go(e.dataset.goto));document.querySelectorAll("[data-open]").forEach(e=>e.onclick=()=>{let x=lessons.find(a=>a.id===e.dataset.open);go(x.page);setTimeout(()=>document.getElementById(x.id)?.scrollIntoView({behavior:"smooth"}),20)});document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{let id=b.dataset.fav;favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];saveFav();render()});document.querySelectorAll("[data-edit-cloud]").forEach(b=>b.onclick=()=>{
+  const lesson = lessons.find(x=>x.id===b.dataset.editCloud);
+  if(!lesson || !lesson.cloudId) return;
+  editingCloudLessonId = lesson.cloudId;
+  document.getElementById("newTitle").value = lesson.title;
+  document.getElementById("newCategory").value = lesson.page;
+  document.getElementById("newContent").value = lesson.rawContent || "";
+  document.getElementById("newCode").value = lesson.rawCode || "";
+  composerHeading.textContent = "ノートを編集";
+  composerDescription.textContent = "内容を修正して更新できます。変更はSupabaseに保存されます。";
+  addNoteBtn.textContent = "変更を保存";
+  noteComposer.hidden = false;
+  noteComposer.scrollIntoView({behavior:"smooth",block:"start"});
+});
+document.querySelectorAll("[data-delete-cloud]").forEach(b=>b.onclick=async()=>{
+  const lesson = lessons.find(x=>x.id===b.dataset.deleteCloud);
+  if(!lesson || !lesson.cloudId) return;
+  if(!confirm("「"+lesson.title+"」をクラウドから削除しますか？この操作は取り消せません。")) return;
+  b.disabled = true;
+  const {data:authData,error:authError} = await supabaseClient.auth.getUser();
+  if(authError || !authData.user){b.disabled=false;return setCloudStatus("ログイン状態を確認できません。");}
+  const {error} = await supabaseClient.from("unity_lessons").delete().eq("id",lesson.cloudId).eq("user_id",authData.user.id);
+  b.disabled = false;
+  if(error) return setCloudStatus("削除エラー："+error.message);
+  lessons = lessons.filter(x=>x.id!==lesson.id);
+  loadedCloudIds.delete(lesson.id);
+  favorites = favorites.filter(id=>id!==lesson.id);
+  saveFav();
+  render();
+  setCloudStatus("削除完了：「"+lesson.title+"」をクラウドから削除しました。");
+});
+document.querySelectorAll(".copy").forEach(b=>b.onclick=async()=>{let t=b.parentElement.querySelector("code").innerText;try{await navigator.clipboard.writeText(t);b.textContent="コピー済み"}catch{b.textContent="選択してコピー"}setTimeout(()=>b.textContent="コピー",1500)})}
 function go(p){current=p;query="";document.getElementById("search").value="";render();window.scrollTo({top:0,behavior:"smooth"})}
 document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 document.getElementById("search").addEventListener("input",e=>{query=e.target.value;current="search";render()});
@@ -112,6 +143,9 @@ const syncBtn = document.getElementById("syncBtn");
 const loadBtn = document.getElementById("loadBtn");
 const noteComposer = document.getElementById("noteComposer");
 const addNoteBtn = document.getElementById("addNoteBtn");
+let editingCloudLessonId = null;
+const composerHeading = noteComposer.querySelector("h2");
+const composerDescription = noteComposer.querySelector("p");
 let loadedCloudIds = new Set();
 
 function setCloudStatus(message) {
@@ -207,7 +241,10 @@ async function loadCloudLessons() {
       title: row.title || "タイトルなし",
       desc: "クラウドから読み込んだノート",
       tags: ["クラウド"],
-      body: (textBody + codeBody) || "<p>内容はまだありません。</p>"
+      body: (textBody + codeBody) || "<p>内容はまだありません。</p>",
+      cloudId: row.id,
+      rawContent: row.content || "",
+      rawCode: row.code || ""
     });
     loadedCloudIds.add(cloudId);
     added++;
@@ -227,7 +264,7 @@ addNoteBtn.addEventListener("click", async () => {
   if (!content && !code.trim()) return setCloudStatus("学習内容かC#コードを入力してください。");
 
   addNoteBtn.disabled = true;
-  setCloudStatus("新しいノートを保存しています…");
+  setCloudStatus(editingCloudLessonId ? "ノートを更新しています…" : "新しいノートを保存しています…");
 
   const { data: authData, error: authError } = await supabaseClient.auth.getUser();
   if (authError || !authData.user) {
@@ -236,44 +273,58 @@ addNoteBtn.addEventListener("click", async () => {
     return setCloudStatus("ログイン状態を確認できません。もう一度ログインしてください。");
   }
 
-  const { data, error } = await supabaseClient
-    .from("unity_lessons")
-    .insert({
-      title,
-      category,
-      content,
-      code,
-      user_id: authData.user.id
-    })
-    .select("id,title,category,content,code,created_at")
-    .single();
+  const record = { title, category, content, code, user_id: authData.user.id };
+  let savedRow, saveError;
+
+  if (editingCloudLessonId) {
+    const result = await supabaseClient.from("unity_lessons")
+      .update(record)
+      .eq("id", editingCloudLessonId)
+      .eq("user_id", authData.user.id)
+      .select("id,title,category,content,code,created_at")
+      .single();
+    savedRow = result.data;
+    saveError = result.error;
+  } else {
+    const result = await supabaseClient.from("unity_lessons")
+      .insert(record)
+      .select("id,title,category,content,code,created_at")
+      .single();
+    savedRow = result.data;
+    saveError = result.error;
+  }
 
   addNoteBtn.disabled = false;
-  if (error) return setCloudStatus("保存エラー：" + error.message);
+  if (saveError) return setCloudStatus((editingCloudLessonId ? "更新" : "保存") + "エラー：" + saveError.message);
 
-  document.getElementById("newTitle").value = "";
-  document.getElementById("newContent").value = "";
-  document.getElementById("newCode").value = "";
-
-  // 追加したノートを画面にも即時反映
   const escapeHTML = value => String(value || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const body = (content ? `<p>${escapeHTML(content).replace(/\n/g, "<br>")}</p>` : "")
     + (code.trim() ? `<pre><code>${escapeHTML(code)}</code></pre>` : "");
-  const cloudId = "cloud-" + data.id;
-  lessons.push({
-    id: cloudId,
-    page: category,
-    title,
+  const cloudId = savedRow.id;
+  const localId = "cloud-" + cloudId;
+  const existingIndex = lessons.findIndex(x => x.id === localId);
+  const lessonObject = {
+    id: localId, cloudId, page: category, title,
     desc: "クラウドに保存したノート",
-    tags: ["クラウド"],
-    body
-  });
-  loadedCloudIds.add(cloudId);
+    tags: ["クラウド"], body, rawContent: content, rawCode: code
+  };
+  if (existingIndex >= 0) lessons[existingIndex] = lessonObject;
+  else lessons.push(lessonObject);
+
+  const wasEditing = !!editingCloudLessonId;
+  editingCloudLessonId = null;
+  document.getElementById("newTitle").value = "";
+  document.getElementById("newContent").value = "";
+  document.getElementById("newCode").value = "";
+  composerHeading.textContent = "＋ 新しい学習ノートを追加";
+  composerDescription.textContent = "ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。";
+  addNoteBtn.textContent = "ノートを保存";
+
   current = category;
   query = "";
   document.getElementById("search").value = "";
   render();
-  setCloudStatus("保存完了！新しいノートをクラウドに追加しました。別の端末では「クラウドから読み込む」を押すと表示されます。");
+  setCloudStatus(wasEditing ? "更新完了！変更をクラウドに保存しました。" : "保存完了！新しいノートをクラウドに追加しました。別の端末では「クラウドから読み込む」を押すと表示されます。");
 });
 
 loadBtn.addEventListener("click", loadCloudLessons);
