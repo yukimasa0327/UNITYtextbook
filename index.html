@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#111827">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>UNITY教科書</title>
 <style>
 :root{--bg:#f4f6fb;--panel:#fff;--ink:#182235;--muted:#68758a;--line:#e4e9f1;--accent:#6658e8;--accent2:#8b7ff5;--nav:#111827;--soft:#f0efff;--green:#16845b;--shadow:0 12px 32px rgba(27,39,68,.07)}
@@ -26,6 +27,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 .empty{color:var(--muted);font-size:13px;padding:28px;text-align:center;background:#fff;border:1px dashed var(--line);border-radius:14px}
 .footer{text-align:center;color:#9aa4b5;font-size:10px;margin-top:35px}
 .mobilebrand{display:none}
+.cloudbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:14px;margin:18px 0 0}.cloudbar input{min-width:180px;flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:12px}.cloudbar button{border:0;border-radius:8px;background:var(--accent);color:#fff;padding:9px 12px;font-size:11px;cursor:pointer}.cloudbar button.secondary{background:#eef0f7;color:#39445a}.cloudstatus{width:100%;font-size:11px;color:var(--muted)}
 @media(max-width:850px){.app{grid-template-columns:1fr}.sidebar{height:auto;position:sticky;top:0;z-index:8;padding:10px 13px;gap:8px}.brand{padding:0 5px}.logo{width:34px;height:34px}.brand b{font-size:15px}.brand small{display:none}.nav{display:flex;overflow:auto;gap:4px}.navlabel,.sidefoot{display:none}.nav button{white-space:nowrap;width:auto;padding:8px 10px;font-size:11px;margin:0}.nav .ico{width:auto}.topbar{height:58px;padding:0 16px}.crumb{display:none}.search{width:min(100%,290px)}.content{padding:20px 15px 55px}.welcome{padding:24px 21px}.welcome h1{font-size:24px}.welcome:after{right:8px;font-size:100px}.stats{gap:20px}.cards{grid-template-columns:repeat(2,1fr);gap:10px}.card{padding:15px}.sectionhead{margin-top:23px}}
 @media(max-width:480px){.cards{grid-template-columns:1fr}.welcome p{max-width:95%}.stats{gap:15px}.stat strong{font-size:19px}.topright{width:100%}.search{width:100%}}
 </style>
@@ -49,7 +51,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </aside>
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
-<div class="content" id="view"></div>
+<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><div id="view"></div></div>
 </main>
 </div>
 <script>
@@ -93,6 +95,123 @@ function wire(){document.querySelectorAll("[data-goto]").forEach(e=>e.onclick=()
 function go(p){current=p;query="";document.getElementById("search").value="";render();window.scrollTo({top:0,behavior:"smooth"})}
 document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>go(b.dataset.page));
 document.getElementById("search").addEventListener("input",e=>{query=e.target.value;current="search";render()});
+
+// Supabase接続設定（Publishable keyはブラウザで使える公開キー）
+const SUPABASE_URL = "https://uaozuibmwaadtkihqwub.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_iLGcIQQlfOosnus64mHg6g_gSyb8SgC";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const cloudStatus = document.getElementById("cloudStatus");
+const signInBtn = document.getElementById("signInBtn");
+const signUpBtn = document.getElementById("signUpBtn");
+const signOutBtn = document.getElementById("signOutBtn");
+const syncBtn = document.getElementById("syncBtn");
+
+function setCloudStatus(message) {
+  cloudStatus.textContent = message;
+}
+function updateAuthUI(user) {
+  const loggedIn = !!user;
+  signInBtn.hidden = loggedIn;
+  signUpBtn.hidden = loggedIn;
+  signOutBtn.hidden = !loggedIn;
+  syncBtn.hidden = !loggedIn;
+  authEmail.hidden = loggedIn;
+  authPassword.hidden = loggedIn;
+  setCloudStatus(loggedIn
+    ? `${user.email} でログイン中。ノートをクラウドに保存できます。`
+    : "未ログイン：ログインすると学習ノートをオンライン保存できます。");
+}
+
+signUpBtn.addEventListener("click", async () => {
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || password.length < 8) {
+    setCloudStatus("メールアドレスと8文字以上のパスワードを入力してください。");
+    return;
+  }
+  signUpBtn.disabled = true;
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  signUpBtn.disabled = false;
+  if (error) return setCloudStatus("新規登録エラー：" + error.message);
+  if (data.session) {
+    updateAuthUI(data.user);
+  } else {
+    setCloudStatus("確認メールを送信しました。メール内のリンクを開いて登録を完了してください。");
+  }
+});
+
+signInBtn.addEventListener("click", async () => {
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) return setCloudStatus("メールアドレスとパスワードを入力してください。");
+  signInBtn.disabled = true;
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  signInBtn.disabled = false;
+  if (error) return setCloudStatus("ログインエラー：" + error.message);
+  updateAuthUI(data.user);
+});
+
+signOutBtn.addEventListener("click", async () => {
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) return setCloudStatus("ログアウトエラー：" + error.message);
+  updateAuthUI(null);
+});
+
+syncBtn.addEventListener("click", async () => {
+  syncBtn.disabled = true;
+  setCloudStatus("ノートを確認しています…");
+  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !authData.user) {
+    syncBtn.disabled = false;
+    updateAuthUI(null);
+    return setCloudStatus("ログイン状態を確認できません。もう一度ログインしてください。");
+  }
+  const user = authData.user;
+  const { data: existing, error: readError } = await supabaseClient
+    .from("unity_lessons")
+    .select("id,title,category")
+    .eq("user_id", user.id);
+  if (readError) {
+    syncBtn.disabled = false;
+    return setCloudStatus("読み込みエラー：" + readError.message);
+  }
+
+  let added = 0;
+  let updated = 0;
+  for (const lesson of lessons) {
+    const found = (existing || []).find(row => row.title === lesson.title && row.category === lesson.page);
+    const record = {
+      title: lesson.title,
+      category: lesson.page,
+      content: lesson.body,
+      code: "",
+      user_id: user.id
+    };
+    const result = found
+      ? await supabaseClient.from("unity_lessons").update(record).eq("id", found.id).eq("user_id", user.id)
+      : await supabaseClient.from("unity_lessons").insert(record);
+    if (result.error) {
+      syncBtn.disabled = false;
+      return setCloudStatus("保存エラー：" + result.error.message + "（" + lesson.title + "）");
+    }
+    if (found) updated++; else added++;
+  }
+  syncBtn.disabled = false;
+  setCloudStatus(`保存完了：新規 ${added} 件・更新 ${updated} 件。別のPCやスマホから同じアカウントでログインして利用できます。`);
+});
+
+supabaseClient.auth.getSession().then(({ data, error }) => {
+  if (error) setCloudStatus("ログイン状態の確認に失敗しました：" + error.message);
+  updateAuthUI(data?.session?.user || null);
+});
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+  updateAuthUI(session?.user || null);
+});
+
+
 render();
 </script>
 </body></html>
