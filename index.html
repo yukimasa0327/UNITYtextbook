@@ -51,7 +51,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </aside>
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
-<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><div id="view"></div></div>
+<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><div id="view"></div></div>
 </main>
 </div>
 <script>
@@ -108,6 +108,8 @@ const signInBtn = document.getElementById("signInBtn");
 const signUpBtn = document.getElementById("signUpBtn");
 const signOutBtn = document.getElementById("signOutBtn");
 const syncBtn = document.getElementById("syncBtn");
+const loadBtn = document.getElementById("loadBtn");
+let loadedCloudIds = new Set();
 
 function setCloudStatus(message) {
   cloudStatus.textContent = message;
@@ -118,6 +120,7 @@ function updateAuthUI(user) {
   signUpBtn.hidden = loggedIn;
   signOutBtn.hidden = !loggedIn;
   syncBtn.hidden = !loggedIn;
+  loadBtn.hidden = !loggedIn;
   authEmail.hidden = loggedIn;
   authPassword.hidden = loggedIn;
   setCloudStatus(loggedIn
@@ -152,6 +155,7 @@ signInBtn.addEventListener("click", async () => {
   signInBtn.disabled = false;
   if (error) return setCloudStatus("ログインエラー：" + error.message);
   updateAuthUI(data.user);
+  await loadCloudLessons();
 });
 
 signOutBtn.addEventListener("click", async () => {
@@ -159,6 +163,54 @@ signOutBtn.addEventListener("click", async () => {
   if (error) return setCloudStatus("ログアウトエラー：" + error.message);
   updateAuthUI(null);
 });
+
+async function loadCloudLessons() {
+  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !authData.user) {
+    return setCloudStatus("ログイン状態を確認できません。もう一度ログインしてください。");
+  }
+
+  loadBtn.disabled = true;
+  setCloudStatus("クラウドのノートを読み込んでいます…");
+
+  const { data, error } = await supabaseClient
+    .from("unity_lessons")
+    .select("id,title,category,content,code,created_at")
+    .eq("user_id", authData.user.id)
+    .order("created_at", { ascending: true });
+
+  loadBtn.disabled = false;
+  if (error) return setCloudStatus("読み込みエラー：" + error.message);
+
+  let added = 0;
+  for (const row of (data || [])) {
+    const category = pageInfo[row.category] ? row.category : "scripts";
+    const existingLocal = lessons.find(x => x.title === row.title && x.page === category);
+    if (existingLocal) {
+      // 既存の19件はそのまま維持し、クラウド上の追加ノートだけを新規表示する
+      continue;
+    }
+    const cloudId = "cloud-" + row.id;
+    if (loadedCloudIds.has(cloudId)) continue;
+    lessons.push({
+      id: cloudId,
+      page: category,
+      title: row.title || "タイトルなし",
+      desc: "クラウドから読み込んだノート",
+      tags: ["クラウド"],
+      body: row.content || (row.code
+        ? `<pre><code>${String(row.code).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}</code></pre>`
+        : "<p>内容はまだありません。</p>")
+    });
+    loadedCloudIds.add(cloudId);
+    added++;
+  }
+
+  render();
+  setCloudStatus(`読み込み完了：クラウドのノート ${data?.length || 0} 件を確認しました。新しく表示したノートは ${added} 件です。`);
+}
+
+loadBtn.addEventListener("click", loadCloudLessons);
 
 syncBtn.addEventListener("click", async () => {
   syncBtn.disabled = true;
@@ -203,9 +255,10 @@ syncBtn.addEventListener("click", async () => {
   setCloudStatus(`保存完了：新規 ${added} 件・更新 ${updated} 件。別のPCやスマホから同じアカウントでログインして利用できます。`);
 });
 
-supabaseClient.auth.getSession().then(({ data, error }) => {
+supabaseClient.auth.getSession().then(async ({ data, error }) => {
   if (error) setCloudStatus("ログイン状態の確認に失敗しました：" + error.message);
   updateAuthUI(data?.session?.user || null);
+  if (data?.session?.user) await loadCloudLessons();
 });
 supabaseClient.auth.onAuthStateChange((_event, session) => {
   updateAuthUI(session?.user || null);
