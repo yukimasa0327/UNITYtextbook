@@ -28,7 +28,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 .footer{text-align:center;color:#9aa4b5;font-size:10px;margin-top:35px}
 .mobilebrand{display:none}
 .cloudbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:14px;margin:18px 0 0}.cloudbar input{min-width:180px;flex:1;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:12px}.cloudbar button{border:0;border-radius:8px;background:var(--accent);color:#fff;padding:9px 12px;font-size:11px;cursor:pointer}.cloudbar button.secondary{background:#eef0f7;color:#39445a}.cloudstatus{width:100%;font-size:11px;color:var(--muted)}
-.notecomposer{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0;box-shadow:var(--shadow)}.notecomposer h2{font-size:17px;margin:0 0 6px}.notecomposer p{font-size:12px;color:var(--muted);margin:0 0 14px}.notegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.notecomposer input,.notecomposer select,.notecomposer textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fafbfe;font:inherit;font-size:13px}.notecomposer textarea{min-height:90px;resize:vertical}.notecomposer .wide{grid-column:1/-1}.notecomposer button{border:0;border-radius:9px;background:var(--accent);color:#fff;padding:10px 16px;font:inherit;font-size:13px;cursor:pointer}.notecomposer button:disabled{opacity:.6;cursor:wait}@media(max-width:600px){.notegrid{grid-template-columns:1fr}.notecomposer .wide{grid-column:auto}}
+.notecomposer{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin:18px 0;box-shadow:var(--shadow)}.notecomposer h2{font-size:17px;margin:0 0 6px}.notecomposer p{font-size:12px;color:var(--muted);margin:0 0 14px}.notegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.notecomposer input,.notecomposer select,.notecomposer textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fafbfe;font:inherit;font-size:13px}.notecomposer textarea{min-height:90px;resize:vertical}.notecomposer .wide{grid-column:1/-1}.notecomposer button{border:0;border-radius:9px;background:var(--accent);color:#fff;padding:10px 16px;font:inherit;font-size:13px;cursor:pointer}.notecomposer button:disabled{opacity:.6;cursor:wait}.notecomposer .importbox{border-top:1px solid var(--line);margin-top:20px;padding-top:16px}.notecomposer .importbox h3{font-size:14px;margin:0 0 6px}.notecomposer .importbox p,.notecomposer .importbox small{font-size:11px;color:var(--muted);line-height:1.7}.notecomposer .importbox textarea{min-height:150px;font-family:ui-monospace,Consolas,monospace;font-size:12px}.notecomposer .importbox button{margin-top:8px;background:#16845b}@media(max-width:600px){.notegrid{grid-template-columns:1fr}.notecomposer .wide{grid-column:auto}}
 @media(max-width:850px){.app{grid-template-columns:1fr}.sidebar{height:auto;position:sticky;top:0;z-index:8;padding:10px 13px;gap:8px}.brand{padding:0 5px}.logo{width:34px;height:34px}.brand b{font-size:15px}.brand small{display:none}.nav{display:flex;overflow:auto;gap:4px}.navlabel,.sidefoot{display:none}.nav button{white-space:nowrap;width:auto;padding:8px 10px;font-size:11px;margin:0}.nav .ico{width:auto}.topbar{height:58px;padding:0 16px}.crumb{display:none}.search{width:min(100%,290px)}.content{padding:20px 15px 55px}.welcome{padding:24px 21px}.welcome h1{font-size:24px}.welcome:after{right:8px;font-size:100px}.stats{gap:20px}.cards{grid-template-columns:repeat(2,1fr);gap:10px}.card{padding:15px}.sectionhead{margin-top:23px}}
 @media(max-width:480px){.cards{grid-template-columns:1fr}.welcome p{max-width:95%}.stats{gap:15px}.stat strong{font-size:19px}.topright{width:100%}.search{width:100%}}
 </style>
@@ -52,7 +52,9 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </aside>
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
-<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div></section><div id="view"></div></div>
+<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div>
+<div class="importbox"><h3>ChatGPTから取り込む</h3><p>ChatGPTが作成したUNITY教科書用JSONを貼り付けて、Supabaseに保存できます。1件または複数件に対応しています。</p><textarea id="chatgptImportJson" class="wide" placeholder='{"title":"Vector3について","category":"movement","content":"Vector3は...","code":"Vector3 pos = Vector3.zero;"}'></textarea><div class="wide"><button id="importChatgptBtn" type="button">ChatGPTの内容を取り込む</button></div><small>対応カテゴリ：basics / arrays / movement / objects / game / scripts</small></div>
+</section><div id="view"></div></div>
 </main>
 </div>
 <script>
@@ -372,6 +374,55 @@ addNoteBtn.addEventListener("click", async () => {
   document.getElementById("search").value = "";
   render();
   setCloudStatus(wasEditing ? "更新完了！変更をクラウドに保存しました。" : "保存完了！新しいノートをクラウドに追加しました。別の端末では「クラウドから読み込む」を押すと表示されます。");
+});
+
+const importChatgptBtn = document.getElementById("importChatgptBtn");
+importChatgptBtn.addEventListener("click", async () => {
+  const input = document.getElementById("chatgptImportJson").value.trim();
+  if (!input) return setCloudStatus("ChatGPTのJSONを貼り付けてください。");
+
+  let parsed;
+  try { parsed = JSON.parse(input); }
+  catch { return setCloudStatus("JSONの形式が正しくありません。ChatGPTの出力をそのまま貼り付けてください。"); }
+
+  const items = Array.isArray(parsed) ? parsed : [parsed];
+  if (!items.length || items.length > 30) return setCloudStatus("一度に取り込めるノートは1～30件です。");
+  const allowedCategories = new Set(["basics", "arrays", "movement", "objects", "game", "scripts"]);
+  const records = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) return setCloudStatus(`${i + 1}件目の形式が正しくありません。`);
+    const title = String(item.title ?? "").trim();
+    const category = String(item.category ?? "basics").trim();
+    const content = String(item.content ?? "").trim();
+    const code = String(item.code ?? "");
+    if (!title || !content) return setCloudStatus(`${i + 1}件目：titleとcontentは必須です。`);
+    if (!allowedCategories.has(category)) return setCloudStatus(`${i + 1}件目：categoryは basics / arrays / movement / objects / game / scripts のいずれかにしてください。`);
+    if (title.length > 200 || category.length > 100 || content.length > 20000 || code.length > 20000) return setCloudStatus(`${i + 1}件目：文字数の上限を超えています。`);
+    records.push({ title, category, content, code });
+  }
+
+  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !authData.user) {
+    updateAuthUI(null);
+    return setCloudStatus("ログインしてください。ログイン後に取り込めます。");
+  }
+  if (!confirm(`${records.length}件のノートをSupabaseに保存します。よろしいですか？`)) return;
+
+  importChatgptBtn.disabled = true;
+  setCloudStatus("ChatGPTの内容を保存しています…");
+  try {
+    const rows = records.map(item => ({ ...item, user_id: authData.user.id }));
+    const { error } = await supabaseClient.from("unity_lessons").insert(rows);
+    if (error) throw error;
+    document.getElementById("chatgptImportJson").value = "";
+    await loadCloudLessons();
+    setCloudStatus(`取り込み完了！${records.length}件のノートをSupabaseに保存しました。`);
+  } catch (error) {
+    setCloudStatus("取り込みエラー：" + (error.message || "保存を確認できませんでした。"));
+  } finally {
+    importChatgptBtn.disabled = false;
+  }
 });
 
 loadBtn.addEventListener("click", loadCloudLessons);
