@@ -52,7 +52,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </aside>
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
-<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><button id="exportBtn" class="secondary" hidden>JSONを書き出す</button><button id="deleteAllBtn" class="secondary danger" hidden>クラウドノートを一括削除</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div>
+<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>初期ノートもクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><button id="exportBtn" class="secondary" hidden>JSONを書き出す</button><button id="deleteAllBtn" class="secondary danger" hidden>クラウドノートを一括削除</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div>
 <div class="importbox"><h3>ChatGPTから取り込む</h3><p>ChatGPTが作成したUNITY教科書用JSONを貼り付けて、Supabaseに保存できます。contentはHTML書式と文字としてのHTMLタグの両方に対応。codeにはC#コードを入力してください。1件または複数件に対応しています。</p><textarea id="chatgptImportJson" class="wide" placeholder='{"title":"Vector3について","category":"movement","content":"Vector3は...","code":"Vector3 pos = Vector3.zero;"}'></textarea><div class="wide"><button id="importChatgptBtn" type="button">ChatGPTの内容を取り込む</button></div><small>対応カテゴリ：basics / arrays / movement / objects / game / scripts</small></div>
 </section><div id="view"></div></div>
 </main>
@@ -79,6 +79,47 @@ let lessons = [
 { id:"tooltip",page:"scripts",title:"Tooltip",desc:"Inspectorに説明を表示",tags:["Inspector"],body:`<pre><button class="copy">コピー</button><code>[Tooltip("プレイヤーの移動速度です")]\npublic float speed;</code></pre><p>Inspectorで変数にマウスを合わせたときに説明を表示できる。</p>`},
 { id:"generator",page:"scripts",title:"Generatorの基本",desc:"一定時間ごとにPrefabを生成",tags:["実践","生成"],body:`<pre><button class="copy">コピー</button><code>float delta = 0;\nfloat span = 2.0f;\n\nvoid Update()\n{\n    delta += Time.deltaTime;\n    if (delta > span)\n    {\n        delta = 0;\n        Instantiate(prefab);\n    }\n}</code></pre><p>deltaに経過時間を足し、spanを超えたら生成してdeltaをリセットする。</p>`}
 ];
+
+// 初期ノートをクラウドへ移行済みであることを、全端末で共有するための非表示マーカー。
+// unity_lessons テーブルをそのまま利用するため、追加のテーブル作成は不要。
+const INITIAL_MIGRATION_MARKER_TITLE = "__UNITY_INITIAL_NOTES_MIGRATED_V1__";
+const INITIAL_MIGRATION_MARKER_CONTENT = "UNITY_INITIAL_NOTES_MIGRATION_V1";
+function isInitialMigrationMarker(row) {
+  return row && row.title === INITIAL_MIGRATION_MARKER_TITLE && row.content === INITIAL_MIGRATION_MARKER_CONTENT;
+}
+
+// 初期ノートのHTML本文から、説明(content)とコード(code)を分ける。
+// 元の説明文・コードの意味は変更せず、pre内のコードだけを独立させる。
+function extractLessonParts(lesson) {
+  if (typeof lesson.rawContent === "string" || typeof lesson.rawCode === "string") {
+    return {
+      content: String(lesson.rawContent ?? ""),
+      code: String(lesson.rawCode ?? "")
+    };
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = String(lesson.body ?? "");
+  const codeParts = [];
+  template.content.querySelectorAll("pre").forEach(pre => {
+    const codeElement = pre.querySelector("code");
+    const clone = pre.cloneNode(true);
+    clone.querySelectorAll("button").forEach(button => button.remove());
+    const codeText = (codeElement ? codeElement.textContent : clone.textContent || "").replace(/\r\n/g, "\n").trim();
+    if (codeText) codeParts.push(codeText);
+    pre.remove();
+  });
+
+  return {
+    content: template.innerHTML.trim(),
+    code: codeParts.join("\n\n")
+  };
+}
+function buildCodeBlock(code) {
+  return code && code.trim()
+    ? `<pre><button class="copy">コピー</button><code>${escapeLessonText(code)}</code></pre>`
+    : "";
+}
 const pageNames={home:"ホーム",basics:"C#基礎",arrays:"配列・繰り返し",movement:"移動・座標",objects:"オブジェクト",game:"ゲーム機能",scripts:"実践コード",glossary:"用語集",favorites:"お気に入り"};
 const pageInfo={
 basics:["C#基礎","プログラムを書くための基本ルール。変数・条件分岐・メソッドを整理。"],
@@ -266,6 +307,7 @@ exportBtn.addEventListener("click", async () => {
       .from("unity_lessons")
       .select("title,category,content,code,created_at")
       .eq("user_id", authData.user.id)
+      .neq("title", INITIAL_MIGRATION_MARKER_TITLE)
       .order("created_at", { ascending: true });
     if (error) throw error;
 
@@ -295,8 +337,8 @@ exportBtn.addEventListener("click", async () => {
 });
 
 
-// ログイン中のユーザーが保存したクラウドノートだけを一括削除する
-// 初期搭載ノートや他ユーザーのデータには触れない
+// ログイン中のユーザーのクラウドノートを一括削除する。
+// 移行完了マーカーは残し、初期ノートが再表示・再移行されないようにする。
  deleteAllBtn.addEventListener("click", async () => {
   if (cloudOperationInProgress) return;
   const originalText = deleteAllBtn.textContent;
@@ -312,7 +354,8 @@ exportBtn.addEventListener("click", async () => {
     const { data: rows, error: countError } = await supabaseClient
       .from("unity_lessons")
       .select("id,title")
-      .eq("user_id", authData.user.id);
+      .eq("user_id", authData.user.id)
+      .neq("title", INITIAL_MIGRATION_MARKER_TITLE);
     if (countError) throw countError;
     const count = (rows || []).length;
     if (count === 0) {
@@ -320,7 +363,7 @@ exportBtn.addEventListener("click", async () => {
       return;
     }
 
-    const firstConfirm = confirm(`ログイン中のアカウントに保存されているクラウドノート ${count} 件をすべて削除します。\n\n初期搭載ノートは削除されません。先に「JSONを書き出す」でバックアップを保存してください。\n\n本当に続けますか？`);
+    const firstConfirm = confirm(`ログイン中のアカウントに保存されているクラウドノート ${count} 件をすべて削除します。\n\n初期ノートもクラウド保存済みの場合は削除対象です。先に「JSONを書き出す」でバックアップを保存してください。\n\n本当に続けますか？`);
     if (!firstConfirm) {
       setCloudStatus("一括削除をキャンセルしました。");
       return;
@@ -335,7 +378,8 @@ exportBtn.addEventListener("click", async () => {
     const { error: deleteError } = await supabaseClient
       .from("unity_lessons")
       .delete()
-      .eq("user_id", authData.user.id);
+      .eq("user_id", authData.user.id)
+      .neq("title", INITIAL_MIGRATION_MARKER_TITLE);
     if (deleteError) throw deleteError;
 
     const cloudLocalIds = new Set(lessons.filter(x => x.cloudId != null).map(x => x.id));
@@ -344,7 +388,7 @@ exportBtn.addEventListener("click", async () => {
     favorites = favorites.filter(id => !cloudLocalIds.has(id));
     saveFav();
     render();
-    setCloudStatus(`一括削除完了：クラウドノート ${count} 件を削除しました。初期搭載ノートは残っています。`);
+    setCloudStatus(`一括削除完了：クラウドノート ${count} 件を削除しました。初期ノートもクラウド管理の対象です。`);
   } catch (error) {
     setCloudStatus("一括削除エラー：" + (error.message || "不明なエラー"));
   } finally {
@@ -376,10 +420,12 @@ async function loadCloudLessons() {
       .order("created_at", { ascending: true });
     if (error) throw error;
 
-    const rows = data || [];
+    const allRows = data || [];
+    const migrationCompleted = allRows.some(isInitialMigrationMarker);
+    const rows = allRows.filter(row => !isInitialMigrationMarker(row));
     const cloudIdsFromServer = new Set(rows.map(row => String(row.id)));
 
-    // サーバーに存在しないクラウドノートを画面から取り除く
+    // サーバーに存在しないクラウドノートを画面から取り除く。
     const beforeCount = lessons.filter(x => x.cloudId != null).length;
     const keptLessons = lessons.filter(x => x.cloudId == null || cloudIdsFromServer.has(String(x.cloudId)));
     lessons.splice(0, lessons.length, ...keptLessons);
@@ -387,42 +433,71 @@ async function loadCloudLessons() {
 
     let added = 0;
     let updated = 0;
+    let linkedInitial = 0;
     for (const row of rows) {
       const category = pageInfo[row.category] ? row.category : "scripts";
       const cloudId = "cloud-" + row.id;
       const textBody = renderLessonContent(row.content);
-      const codeBody = row.code ? `<pre><code>${escapeLessonText(row.code)}</code></pre>` : "";
-      const cloudLesson = {
+      const codeBody = buildCodeBlock(row.code || "");
+      const cloudBody = (textBody + codeBody) || "<p>内容はまだありません。</p>";
+
+      const existingIndex = lessons.findIndex(x => String(x.cloudId) === String(row.id));
+      if (existingIndex >= 0) {
+        lessons[existingIndex] = {
+          ...lessons[existingIndex],
+          id: lessons[existingIndex].cloudId == null ? cloudId : lessons[existingIndex].id,
+          page: category,
+          title: row.title || "タイトルなし",
+          desc: "クラウド保存済みのノート",
+          body: cloudBody,
+          cloudId: row.id,
+          rawContent: row.content || "",
+          rawCode: row.code || ""
+        };
+        updated++;
+        continue;
+      }
+
+      // 初期搭載ノートと同じタイトル・カテゴリのクラウド行を、同じカードに結び付ける。
+      const staticIndex = lessons.findIndex(x => x.cloudId == null && x.title === (row.title || "タイトルなし") && x.page === category);
+      if (staticIndex >= 0) {
+        const staticLesson = lessons[staticIndex];
+        lessons[staticIndex] = {
+          ...staticLesson,
+          desc: "クラウド保存済みのノート",
+          body: cloudBody,
+          cloudId: row.id,
+          rawContent: row.content || "",
+          rawCode: row.code || ""
+        };
+        linkedInitial++;
+        continue;
+      }
+
+      lessons.push({
         id: cloudId,
         page: category,
         title: row.title || "タイトルなし",
         desc: "クラウドから読み込んだノート",
         tags: ["クラウド"],
-        body: (textBody + codeBody) || "<p>内容はまだありません。</p>",
+        body: cloudBody,
         cloudId: row.id,
         rawContent: row.content || "",
         rawCode: row.code || ""
-      };
-
-      const existingIndex = lessons.findIndex(x => String(x.cloudId) === String(row.id));
-      if (existingIndex >= 0) {
-        lessons[existingIndex] = cloudLesson;
-        updated++;
-        continue;
-      }
-
-      // 初期搭載ノートと同じタイトル・カテゴリーなら二重表示しない
-      const existingStatic = lessons.some(x => x.cloudId == null && x.title === cloudLesson.title && x.page === category);
-      if (existingStatic) continue;
-
-      lessons.push(cloudLesson);
+      });
       added++;
+    }
+
+    // 移行済みマーカーがある場合、未リンクの初期ノートを表示しない。
+    // これによりクラウドから削除した初期ノートが、再読み込みで復活するのを防ぐ。
+    if (migrationCompleted) {
+      lessons.splice(0, lessons.length, ...lessons.filter(x => x.cloudId != null));
     }
 
     loadedCloudIds.clear();
     rows.forEach(row => loadedCloudIds.add("cloud-" + row.id));
     render();
-    setCloudStatus(`読み込み完了：クラウド ${rows.length} 件を確認。新規 ${added} 件、更新 ${updated} 件、削除反映 ${removed} 件。`);
+    setCloudStatus(`読み込み完了：クラウド ${rows.length} 件を確認。新規 ${added} 件、更新 ${updated} 件、初期ノート連携 ${linkedInitial} 件、削除反映 ${removed} 件。`);
   } catch (error) {
     setCloudStatus("読み込みエラー：" + (error.message || "不明なエラー"));
   } finally {
@@ -474,15 +549,18 @@ addNoteBtn.addEventListener("click", async () => {
   addNoteBtn.disabled = false;
   if (saveError) return setCloudStatus((editingCloudLessonId ? "更新" : "保存") + "エラー：" + saveError.message);
 
-  const body = renderLessonContent(content)
-    + (code.trim() ? `<pre><code>${escapeLessonText(code)}</code></pre>` : "");
+  const body = renderLessonContent(content) + buildCodeBlock(code);
   const cloudId = savedRow.id;
   const localId = "cloud-" + cloudId;
-  const existingIndex = lessons.findIndex(x => x.id === localId);
+  const existingIndex = lessons.findIndex(x => x.id === localId || String(x.cloudId) === String(cloudId));
+  const previousLesson = existingIndex >= 0 ? lessons[existingIndex] : null;
   const lessonObject = {
-    id: localId, cloudId, page: category, title,
+    ...(previousLesson || {}),
+    id: previousLesson?.id || localId,
+    cloudId, page: category, title,
     desc: "クラウドに保存したノート",
-    tags: ["クラウド"], body, rawContent: content, rawCode: code
+    tags: previousLesson?.tags || ["クラウド"],
+    body, rawContent: content, rawCode: code
   };
   if (existingIndex >= 0) lessons[existingIndex] = lessonObject;
   else lessons.push(lessonObject);
@@ -555,46 +633,95 @@ importChatgptBtn.addEventListener("click", async () => {
 loadBtn.addEventListener("click", loadCloudLessons);
 
 syncBtn.addEventListener("click", async () => {
+  if (cloudOperationInProgress) return;
+  cloudOperationInProgress = true;
   syncBtn.disabled = true;
-  setCloudStatus("ノートを確認しています…");
-  const { data: authData, error: authError } = await supabaseClient.auth.getUser();
-  if (authError || !authData.user) {
-    syncBtn.disabled = false;
-    updateAuthUI(null);
-    return setCloudStatus("ログイン状態を確認できません。もう一度ログインしてください。");
-  }
-  const user = authData.user;
-  const { data: existing, error: readError } = await supabaseClient
-    .from("unity_lessons")
-    .select("id,title,category")
-    .eq("user_id", user.id);
-  if (readError) {
-    syncBtn.disabled = false;
-    return setCloudStatus("読み込みエラー：" + readError.message);
-  }
+  loadBtn.disabled = true;
+  exportBtn.disabled = true;
+  deleteAllBtn.disabled = true;
+  setCloudStatus("初期ノートを含めてクラウドへ保存しています…");
 
-  let added = 0;
-  let updated = 0;
-  for (const lesson of lessons) {
-    const found = (existing || []).find(row => row.title === lesson.title && row.category === lesson.page);
-    const record = {
-      title: lesson.title,
-      category: lesson.page,
-      content: lesson.rawContent ?? lesson.body,
-      code: lesson.rawCode ?? "",
-      user_id: user.id
-    };
-    const result = found
-      ? await supabaseClient.from("unity_lessons").update(record).eq("id", found.id).eq("user_id", user.id)
-      : await supabaseClient.from("unity_lessons").insert(record);
-    if (result.error) {
-      syncBtn.disabled = false;
-      return setCloudStatus("保存エラー：" + result.error.message + "（" + lesson.title + "）");
+  try {
+    const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !authData.user) {
+      updateAuthUI(null);
+      throw new Error("ログイン状態を確認できません。もう一度ログインしてください。");
     }
-    if (found) updated++; else added++;
+    const user = authData.user;
+
+    const { data: existingRows, error: readError } = await supabaseClient
+      .from("unity_lessons")
+      .select("id,title,category,content,code")
+      .eq("user_id", user.id);
+    if (readError) throw readError;
+
+    const existing = existingRows || [];
+    const migrationAlreadyDone = existing.some(isInitialMigrationMarker);
+    let added = 0;
+    let updated = 0;
+
+    for (const lesson of lessons) {
+      const parts = extractLessonParts(lesson);
+      const record = {
+        title: lesson.title,
+        category: lesson.page,
+        content: parts.content,
+        code: parts.code,
+        user_id: user.id
+      };
+      const found = existing.find(row => !isInitialMigrationMarker(row) && row.title === lesson.title && row.category === lesson.page);
+      let saved;
+      if (found) {
+        const result = await supabaseClient.from("unity_lessons")
+          .update(record)
+          .eq("id", found.id)
+          .eq("user_id", user.id)
+          .select("id,title,category,content,code")
+          .single();
+        if (result.error) throw new Error(result.error.message + "（" + lesson.title + "）");
+        saved = result.data;
+        updated++;
+      } else {
+        const result = await supabaseClient.from("unity_lessons")
+          .insert(record)
+          .select("id,title,category,content,code")
+          .single();
+        if (result.error) throw new Error(result.error.message + "（" + lesson.title + "）");
+        saved = result.data;
+        added++;
+      }
+
+      // 初期ノートもクラウドIDを持つようにし、編集・削除ボタンを有効化する。
+      lesson.cloudId = saved.id;
+      lesson.rawContent = saved.content || "";
+      lesson.rawCode = saved.code || "";
+      lesson.desc = "クラウド保存済みのノート";
+      lesson.body = renderLessonContent(lesson.rawContent) + buildCodeBlock(lesson.rawCode);
+    }
+
+    // 移行完了マーカーを保存。別端末でも初期ノートをローカル固定データとして復活させない。
+    if (!migrationAlreadyDone) {
+      const { error: markerError } = await supabaseClient.from("unity_lessons").insert({
+        title: INITIAL_MIGRATION_MARKER_TITLE,
+        category: "scripts",
+        content: INITIAL_MIGRATION_MARKER_CONTENT,
+        code: "",
+        user_id: user.id
+      });
+      if (markerError) throw new Error("移行完了情報の保存に失敗しました：" + markerError.message);
+    }
+
+    render();
+    setCloudStatus(`クラウド保存完了：新規 ${added} 件・更新 ${updated} 件。初期ノートもクラウド管理になりました。今後は各ノートの編集・削除ができます。`);
+  } catch (error) {
+    setCloudStatus("クラウド保存エラー：" + (error.message || "不明なエラー"));
+  } finally {
+    cloudOperationInProgress = false;
+    syncBtn.disabled = false;
+    loadBtn.disabled = false;
+    exportBtn.disabled = false;
+    deleteAllBtn.disabled = false;
   }
-  syncBtn.disabled = false;
-  setCloudStatus(`保存完了：新規 ${added} 件・更新 ${updated} 件。別のPCやスマホから同じアカウントでログインして利用できます。`);
 });
 
 supabaseClient.auth.getSession().then(async ({ data, error }) => {
