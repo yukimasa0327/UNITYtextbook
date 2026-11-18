@@ -53,7 +53,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
 <div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div>
-<div class="importbox"><h3>ChatGPTから取り込む</h3><p>ChatGPTが作成したUNITY教科書用JSONを貼り付けて、Supabaseに保存できます。1件または複数件に対応しています。</p><textarea id="chatgptImportJson" class="wide" placeholder='{"title":"Vector3について","category":"movement","content":"Vector3は...","code":"Vector3 pos = Vector3.zero;"}'></textarea><div class="wide"><button id="importChatgptBtn" type="button">ChatGPTの内容を取り込む</button></div><small>対応カテゴリ：basics / arrays / movement / objects / game / scripts</small></div>
+<div class="importbox"><h3>ChatGPTから取り込む</h3><p>ChatGPTが作成したUNITY教科書用JSONを貼り付けて、Supabaseに保存できます。contentはHTML書式と文字としてのHTMLタグの両方に対応。codeにはC#コードを入力してください。1件または複数件に対応しています。</p><textarea id="chatgptImportJson" class="wide" placeholder='{"title":"Vector3について","category":"movement","content":"Vector3は...","code":"Vector3 pos = Vector3.zero;"}'></textarea><div class="wide"><button id="importChatgptBtn" type="button">ChatGPTの内容を取り込む</button></div><small>対応カテゴリ：basics / arrays / movement / objects / game / scripts</small></div>
 </section><div id="view"></div></div>
 </main>
 </div>
@@ -92,6 +92,29 @@ let current="home", query="";
 let favorites=JSON.parse(localStorage.getItem("unityFavorites")||"[]");
 function saveFav(){localStorage.setItem("unityFavorites",JSON.stringify(favorites))}
 function home(){return `<section class="welcome"><div class="eyebrow">MY PERSONAL LEARNING LIBRARY</div><h1>UNITY教科書</h1><p>Unity・C#の学習内容を、自分のペースで整理する場所。基礎から実践コードまで、必要なときにすぐ見返せる。</p><div class="stats"><div class="stat"><strong>${lessons.length}</strong><span>学習ノート</span></div><div class="stat"><strong>${favorites.length}</strong><span>お気に入り</span></div><div class="stat"><strong>いつでも</strong><span>見返せる</span></div></div></section><div class="sectionhead"><div><h2>学習カテゴリー</h2><p>知りたい分野を選択</p></div></div><div class="cards">${Object.entries(pageInfo).map(([k,v])=>`<div class="card" data-goto="${k}"><div class="cardicon">${({basics:"▤",arrays:"▦",movement:"⌖",objects:"◇",game:"⚙",scripts:"⌘"})[k]}</div><h3>${v[0]}</h3><p>${v[1]}</p><span class="tag">${lessons.filter(x=>x.page===k).length} ノート</span></div>`).join("")}<div class="card" data-goto="glossary"><div class="cardicon">Ａ</div><h3>用語集</h3><p>Unity・C#で使う用語を短く確認。</p><span class="tag">基本用語</span></div></div><div class="panel"><h2>最近追加した学習内容</h2>${lessons.slice(-4).reverse().map(x=>`<div class="recent" data-open="${x.id}"><span class="dot"></span><div><b>${x.title}</b><small>${pageNames[x.page]} ・ ${x.desc}</small></div></div>`).join("")}</div>`}
+// 学習ノート本文：安全なHTML書式と、HTMLタグを文字として見せる記法の両方に対応
+function renderLessonContent(value){
+  const source = String(value ?? "");
+  if (!source.trim()) return "";
+  const allowed = new Set(["P","BR","STRONG","B","EM","I","U","UL","OL","LI","H1","H2","H3","H4","BLOCKQUOTE","PRE","CODE"]);
+  const hasMarkup = /<\/?(p|br|strong|b|em|i|u|ul|ol|li|h[1-4]|blockquote|pre|code)\b/i.test(source);
+  if (!hasMarkup) {
+    return source.split(/\n{2,}/).map(part => `<p>${escapeLessonText(part).replace(/\n/g,"<br>")}</p>`).join("");
+  }
+  const parsed = new DOMParser().parseFromString(`<body>${source}</body>`, "text/html");
+  function clean(node){
+    if (node.nodeType === Node.TEXT_NODE) return escapeLessonText(node.nodeValue);
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const tag = node.tagName;
+    if (!allowed.has(tag)) return Array.from(node.childNodes).map(clean).join("");
+    const inner = Array.from(node.childNodes).map(clean).join("");
+    return tag === "BR" ? "<br>" : `<${tag.toLowerCase()}>${inner}</${tag.toLowerCase()}>`;
+  }
+  return Array.from(parsed.body.childNodes).map(clean).join("");
+}
+function escapeLessonText(value){
+  return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
 function lessonCard(x){return `<article class="lesson" id="${x.id}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><h3>${x.title}</h3><div style="font-size:11px;color:#7a879a">${x.desc}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="pill fav" data-fav="${x.id}">${favorites.includes(x.id)?"★ 保存済み":"☆ 保存"}</button>${x.cloudId ? `<button class="pill" data-edit-cloud="${x.id}">編集</button><button class="pill" data-delete-cloud="${x.id}">削除</button>` : ""}</div></div><div style="margin-top:15px">${x.body}</div><div>${x.tags.map(t=>`<span class="tag">${t}</span>`).join(" ")}</div></article>`}
 function render(){document.getElementById("crumb").textContent=pageNames[current]||"検索結果";document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===current));let v=document.getElementById("view");if(current==="home"){v.innerHTML=home()}else if(current==="glossary"){let terms=[["MonoBehaviour","Unityのスクリプトで使う基本クラス"],["Start()","最初のフレーム更新前に一度呼ばれる"],["Update()","毎フレーム呼ばれる"],["Prefab","再利用できるGameObjectのひな形"],["Instantiate()","オブジェクトを生成する"],["Destroy()","オブジェクトを削除する"],["Vector3","X・Y・Zの値を持つ構造体"],["normalized","ベクトルの向きを保って長さを1にする"],["Time.deltaTime","前フレームからの経過時間"],["Quaternion.identity","回転なしを表す"]];v.innerHTML=`<div class="pagehead"><h1>用語集</h1><p>Unityでよく使う言葉を簡単に確認。</p></div><div class="lessonlist">${terms.map(t=>`<article class="lesson"><h3>${t[0]}</h3><p>${t[1]}</p></article>`).join("")}</div>`}else{let list=current==="favorites"?lessons.filter(x=>favorites.includes(x.id)):lessons.filter(x=>x.page===current);if(query.trim())list=lessons.filter(x=>(x.title+x.desc+x.tags.join(" ")+x.body.replace(/<[^>]*>/g,"")).toLowerCase().includes(query.toLowerCase()));let title=query?"検索結果":(pageInfo[current]?.[0]||"");let desc=query?`「${query}」に一致するノート`:(pageInfo[current]?.[1]||"");v.innerHTML=`<div class="pagehead"><h1>${title}</h1><p>${desc}</p></div><div class="lessonlist">${list.length?list.map(lessonCard).join(""):'<div class="empty">まだノートがありません。</div>'}</div>`}wire()}
 function wire(){document.querySelectorAll("[data-goto]").forEach(e=>e.onclick=()=>go(e.dataset.goto));document.querySelectorAll("[data-open]").forEach(e=>e.onclick=()=>{let x=lessons.find(a=>a.id===e.dataset.open);go(x.page);setTimeout(()=>document.getElementById(x.id)?.scrollIntoView({behavior:"smooth"}),20)});document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{let id=b.dataset.fav;favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];saveFav();render()});document.querySelectorAll("[data-edit-cloud]").forEach(b=>b.onclick=()=>{
@@ -259,11 +282,8 @@ async function loadCloudLessons() {
     for (const row of rows) {
       const category = pageInfo[row.category] ? row.category : "scripts";
       const cloudId = "cloud-" + row.id;
-      const escapeHTML = value => String(value || "").replace(/[&<>\"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-      const textBody = row.content
-        ? String(row.content).split(/\n{2,}/).map(part => `<p>${escapeHTML(part).replace(/\n/g, "<br>")}</p>`).join("")
-        : "";
-      const codeBody = row.code ? `<pre><code>${escapeHTML(row.code)}</code></pre>` : "";
+      const textBody = renderLessonContent(row.content);
+      const codeBody = row.code ? `<pre><code>${escapeLessonText(row.code)}</code></pre>` : "";
       const cloudLesson = {
         id: cloudId,
         page: category,
@@ -346,9 +366,8 @@ addNoteBtn.addEventListener("click", async () => {
   addNoteBtn.disabled = false;
   if (saveError) return setCloudStatus((editingCloudLessonId ? "更新" : "保存") + "エラー：" + saveError.message);
 
-  const escapeHTML = value => String(value || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  const body = (content ? `<p>${escapeHTML(content).replace(/\n/g, "<br>")}</p>` : "")
-    + (code.trim() ? `<pre><code>${escapeHTML(code)}</code></pre>` : "");
+  const body = renderLessonContent(content)
+    + (code.trim() ? `<pre><code>${escapeLessonText(code)}</code></pre>` : "");
   const cloudId = savedRow.id;
   const localId = "cloud-" + cloudId;
   const existingIndex = lessons.findIndex(x => x.id === localId);
@@ -453,8 +472,8 @@ syncBtn.addEventListener("click", async () => {
     const record = {
       title: lesson.title,
       category: lesson.page,
-      content: lesson.body,
-      code: "",
+      content: lesson.rawContent ?? lesson.body,
+      code: lesson.rawCode ?? "",
       user_id: user.id
     };
     const result = found
