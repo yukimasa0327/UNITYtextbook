@@ -52,7 +52,7 @@ pre{background:#151c2b;color:#e6ebf5;padding:16px;border-radius:11px;overflow:au
 </aside>
 <main class="main">
 <header class="topbar"><div class="crumb">MY LEARNING / <b id="crumb">ホーム</b></div><div class="topright"><div class="search"><span>⌕</span><input id="search" placeholder="キーワードを検索..." aria-label="検索"></div></div></header>
-<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div>
+<div class="content"><div class="cloudbar" id="cloudbar"><input id="authEmail" type="email" placeholder="メールアドレス" autocomplete="email"><input id="authPassword" type="password" placeholder="パスワード（8文字以上推奨）" autocomplete="current-password"><button id="signInBtn">ログイン</button><button id="signUpBtn" class="secondary">新規登録</button><button id="signOutBtn" class="secondary" hidden>ログアウト</button><button id="syncBtn" hidden>ノートをクラウド保存</button><button id="loadBtn" class="secondary" hidden>クラウドから読み込む</button><button id="exportBtn" class="secondary" hidden>JSONを書き出す</button><div class="cloudstatus" id="cloudStatus">未ログイン：ログインすると学習ノートをオンライン保存できます。</div></div><section class="notecomposer" id="noteComposer" hidden><h2>＋ 新しい学習ノートを追加</h2><p>ここで追加したノートはSupabaseに保存され、同じアカウントのPC・スマホで共有できます。</p><div class="notegrid"><input id="newTitle" class="wide" maxlength="100" placeholder="ノートのタイトル"><select id="newCategory"><option value="basics">C#基礎</option><option value="arrays">配列・繰り返し</option><option value="movement">移動・座標</option><option value="objects">オブジェクト</option><option value="game">ゲーム機能</option><option value="scripts">実践コード</option></select><textarea id="newContent" class="wide" maxlength="12000" placeholder="学習内容・解説を入力"></textarea><textarea id="newCode" class="wide" maxlength="12000" placeholder="C#コード（任意）"></textarea><div class="wide"><button id="addNoteBtn">ノートを保存</button></div></div>
 <div class="importbox"><h3>ChatGPTから取り込む</h3><p>ChatGPTが作成したUNITY教科書用JSONを貼り付けて、Supabaseに保存できます。contentはHTML書式と文字としてのHTMLタグの両方に対応。codeにはC#コードを入力してください。1件または複数件に対応しています。</p><textarea id="chatgptImportJson" class="wide" placeholder='{"title":"Vector3について","category":"movement","content":"Vector3は...","code":"Vector3 pos = Vector3.zero;"}'></textarea><div class="wide"><button id="importChatgptBtn" type="button">ChatGPTの内容を取り込む</button></div><small>対応カテゴリ：basics / arrays / movement / objects / game / scripts</small></div>
 </section><div id="view"></div></div>
 </main>
@@ -187,6 +187,7 @@ const signUpBtn = document.getElementById("signUpBtn");
 const signOutBtn = document.getElementById("signOutBtn");
 const syncBtn = document.getElementById("syncBtn");
 const loadBtn = document.getElementById("loadBtn");
+const exportBtn = document.getElementById("exportBtn");
 const noteComposer = document.getElementById("noteComposer");
 const addNoteBtn = document.getElementById("addNoteBtn");
 let editingCloudLessonId = null;
@@ -205,6 +206,7 @@ function updateAuthUI(user) {
   signOutBtn.hidden = !loggedIn;
   syncBtn.hidden = !loggedIn;
   loadBtn.hidden = !loggedIn;
+  exportBtn.hidden = !loggedIn;
   noteComposer.hidden = !loggedIn;
   authEmail.hidden = loggedIn;
   authPassword.hidden = loggedIn;
@@ -247,6 +249,47 @@ signOutBtn.addEventListener("click", async () => {
   const { error } = await supabaseClient.auth.signOut();
   if (error) return setCloudStatus("ログアウトエラー：" + error.message);
   updateAuthUI(null);
+});
+
+// ログイン中のユーザーの学習ノートを、再取り込み可能なJSONとして書き出す
+exportBtn.addEventListener("click", async () => {
+  if (cloudOperationInProgress) return;
+  exportBtn.disabled = true;
+  setCloudStatus("クラウドの学習ノートを取得しています…");
+  try {
+    const { data: authData, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !authData.user) throw new Error("ログイン状態を確認できません。もう一度ログインしてください。");
+
+    const { data, error } = await supabaseClient
+      .from("unity_lessons")
+      .select("title,category,content,code,created_at")
+      .eq("user_id", authData.user.id)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    const exportRows = (data || []).map(row => ({
+      title: row.title || "",
+      category: row.category || "basics",
+      content: row.content || "",
+      code: row.code || ""
+    }));
+    const json = JSON.stringify(exportRows, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `UNITY教科書_バックアップ_${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setCloudStatus(`書き出し完了：クラウドの学習ノート ${exportRows.length} 件をJSONで保存しました。`);
+  } catch (error) {
+    setCloudStatus("書き出しエラー：" + (error.message || "不明なエラー"));
+  } finally {
+    exportBtn.disabled = false;
+  }
 });
 
 async function loadCloudLessons() {
