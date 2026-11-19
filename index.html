@@ -157,11 +157,15 @@ function escapeLessonText(value){
   return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 function lessonCard(x){return `<article class="lesson" id="${x.id}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><h3>${x.title}</h3><div style="font-size:11px;color:#7a879a">${x.desc}</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="pill fav" data-fav="${x.id}">${favorites.includes(x.id)?"★ 保存済み":"☆ 保存"}</button>${x.cloudId ? `<button class="pill" data-edit-cloud="${x.id}">編集</button><button class="pill" data-delete-cloud="${x.id}">削除</button>` : ""}</div></div><div style="margin-top:15px">${x.body}</div><div>${x.tags.map(t=>`<span class="tag">${t}</span>`).join(" ")}</div></article>`}
-function render(){document.getElementById("crumb").textContent=pageNames[current]||"検索結果";document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===current));let v=document.getElementById("view");if(current==="home"){v.innerHTML=home()}else if(current==="glossary"){let terms=[["MonoBehaviour","Unityのスクリプトで使う基本クラス"],["Start()","最初のフレーム更新前に一度呼ばれる"],["Update()","毎フレーム呼ばれる"],["Prefab","再利用できるGameObjectのひな形"],["Instantiate()","オブジェクトを生成する"],["Destroy()","オブジェクトを削除する"],["Vector3","X・Y・Zの値を持つ構造体"],["normalized","ベクトルの向きを保って長さを1にする"],["Time.deltaTime","前フレームからの経過時間"],["Quaternion.identity","回転なしを表す"]];v.innerHTML=`<div class="pagehead"><h1>用語集</h1><p>Unityでよく使う言葉を簡単に確認。</p></div><div class="lessonlist">${terms.map(t=>`<article class="lesson"><h3>${t[0]}</h3><p>${t[1]}</p></article>`).join("")}</div>`}else{let list=current==="favorites"?lessons.filter(x=>favorites.includes(x.id)):lessons.filter(x=>x.page===current);if(query.trim())list=lessons.filter(x=>(x.title+x.desc+x.tags.join(" ")+x.body.replace(/<[^>]*>/g,"")).toLowerCase().includes(query.toLowerCase()));let title=query?"検索結果":(pageInfo[current]?.[0]||"");let desc=query?`「${query}」に一致するノート`:(pageInfo[current]?.[1]||"");v.innerHTML=`<div class="pagehead"><h1>${title}</h1><p>${desc}</p></div><div class="lessonlist">${list.length?list.map(lessonCard).join(""):'<div class="empty">まだノートがありません。</div>'}</div>`}wire()}
+function render(){noteComposer.hidden = !(authUserIsLoggedIn && current === "home");document.getElementById("crumb").textContent=pageNames[current]||"検索結果";document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===current));let v=document.getElementById("view");if(current==="home"){v.innerHTML=home()}else if(current==="glossary"){let terms=[["MonoBehaviour","Unityのスクリプトで使う基本クラス"],["Start()","最初のフレーム更新前に一度呼ばれる"],["Update()","毎フレーム呼ばれる"],["Prefab","再利用できるGameObjectのひな形"],["Instantiate()","オブジェクトを生成する"],["Destroy()","オブジェクトを削除する"],["Vector3","X・Y・Zの値を持つ構造体"],["normalized","ベクトルの向きを保って長さを1にする"],["Time.deltaTime","前フレームからの経過時間"],["Quaternion.identity","回転なしを表す"]];v.innerHTML=`<div class="pagehead"><h1>用語集</h1><p>Unityでよく使う言葉を簡単に確認。</p></div><div class="lessonlist">${terms.map(t=>`<article class="lesson"><h3>${t[0]}</h3><p>${t[1]}</p></article>`).join("")}</div>`}else{let list=current==="favorites"?lessons.filter(x=>favorites.includes(x.id)):lessons.filter(x=>x.page===current);if(query.trim())list=lessons.filter(x=>(x.title+x.desc+x.tags.join(" ")+x.body.replace(/<[^>]*>/g,"")).toLowerCase().includes(query.toLowerCase()));let title=query?"検索結果":(pageInfo[current]?.[0]||"");let desc=query?`「${query}」に一致するノート`:(pageInfo[current]?.[1]||"");v.innerHTML=`<div class="pagehead"><h1>${title}</h1><p>${desc}</p></div><div class="lessonlist">${list.length?list.map(lessonCard).join(""):'<div class="empty">まだノートがありません。</div>'}</div>`}wire()}
 function wire(){document.querySelectorAll("[data-goto]").forEach(e=>e.onclick=()=>go(e.dataset.goto));document.querySelectorAll("[data-open]").forEach(e=>e.onclick=()=>{let x=lessons.find(a=>a.id===e.dataset.open);go(x.page);setTimeout(()=>document.getElementById(x.id)?.scrollIntoView({behavior:"smooth"}),20)});document.querySelectorAll("[data-fav]").forEach(b=>b.onclick=()=>{let id=b.dataset.fav;favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];saveFav();render()});document.querySelectorAll("[data-edit-cloud]").forEach(b=>b.onclick=()=>{
   const lesson = lessons.find(x=>x.id===b.dataset.editCloud);
   if(!lesson || !lesson.cloudId) return;
   editingCloudLessonId = lesson.cloudId;
+  current = "home";
+  query = "";
+  document.getElementById("search").value = "";
+  render();
   document.getElementById("newTitle").value = lesson.title;
   document.getElementById("newCategory").value = lesson.page;
   document.getElementById("newContent").value = lesson.rawContent || "";
@@ -237,12 +241,14 @@ const composerHeading = noteComposer.querySelector("h2");
 const composerDescription = noteComposer.querySelector("p");
 let loadedCloudIds = new Set();
 let cloudOperationInProgress = false;
+let authUserIsLoggedIn = false;
 
 function setCloudStatus(message) {
   cloudStatus.textContent = message;
 }
 function updateAuthUI(user) {
   const loggedIn = !!user;
+  authUserIsLoggedIn = loggedIn;
   signInBtn.hidden = loggedIn;
   signUpBtn.hidden = loggedIn;
   signOutBtn.hidden = !loggedIn;
@@ -250,7 +256,7 @@ function updateAuthUI(user) {
   loadBtn.hidden = !loggedIn;
   exportBtn.hidden = !loggedIn;
   deleteAllBtn.hidden = !loggedIn;
-  noteComposer.hidden = !loggedIn;
+  noteComposer.hidden = !(loggedIn && current === "home");
   authEmail.hidden = loggedIn;
   authPassword.hidden = loggedIn;
   setCloudStatus(loggedIn
